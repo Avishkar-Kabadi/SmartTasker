@@ -1,63 +1,103 @@
-import * as Device from 'expo-device';
-import { Platform, StyleSheet } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import React, { useEffect } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, Animated } from 'react-native';
+import { useRouter } from 'expo-router';
+import { useAuth } from '../hooks/useAuth';
+import { useTheme } from '../hooks/useTheme';
+import { typography, spacing } from '../constants/theme';
+import { Lock, Fingerprint } from 'lucide-react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { format } from 'date-fns';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
-import { AnimatedIcon } from '@/components/animated-icon';
-import { HintRow } from '@/components/hint-row';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { WebBadge } from '@/components/web-badge';
-import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
+export default function LockScreen() {
+  const { authenticate, loading, isSupported, requireAuth } = useAuth();
+  const { theme } = useTheme();
+  const router = useRouter();
+  const fadeAnim = new Animated.Value(0);
+  const pulseAnim = new Animated.Value(1);
 
-function getDevMenuHint() {
-  if (Platform.OS === 'web') {
-    return <ThemedText type="small">use browser devtools</ThemedText>;
-  }
-  if (Device.isDevice) {
-    return (
-      <ThemedText type="small">
-        shake device or press <ThemedText type="code">m</ThemedText> in terminal
-      </ThemedText>
-    );
-  }
-  const shortcut = Platform.OS === 'android' ? 'cmd+m (or ctrl+m)' : 'cmd+d';
+  useEffect(() => {
+    Animated.timing(fadeAnim, {
+      toValue: 1,
+      duration: 800,
+      useNativeDriver: true,
+    }).start();
+
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, { toValue: 1.2, duration: 1000, useNativeDriver: true }),
+        Animated.timing(pulseAnim, { toValue: 1, duration: 1000, useNativeDriver: true })
+      ])
+    ).start();
+  }, []);
+
+  useEffect(() => {
+    const checkInitialState = async () => {
+      if (!loading) {
+        const profileStr = await AsyncStorage.getItem('@user_profile');
+        if (!profileStr) {
+          router.replace('/onboarding' as any);
+          return;
+        }
+
+        if (!requireAuth) {
+           router.replace('/(tabs)/home' as any);
+           return;
+        }
+        
+        const timer = setTimeout(() => {
+          handleAuth();
+        }, 500);
+        return () => clearTimeout(timer);
+      }
+    };
+    
+    checkInitialState();
+  }, [loading, requireAuth]);
+
+  const handleAuth = async () => {
+    const success = await authenticate();
+    if (success) {
+      router.replace('/(tabs)/home' as any);
+    }
+  };
+
+  if (loading) return <View style={[styles.container, { backgroundColor: theme.background }]} />;
+
   return (
-    <ThemedText type="small">
-      press <ThemedText type="code">{shortcut}</ThemedText>
-    </ThemedText>
-  );
-}
-
-export default function HomeScreen() {
-  return (
-    <ThemedView style={styles.container}>
-      <SafeAreaView style={styles.safeArea}>
-        <ThemedView style={styles.heroSection}>
-          <AnimatedIcon />
-          <ThemedText type="title" style={styles.title}>
-            Welcome to&nbsp;Expo
-          </ThemedText>
-        </ThemedView>
-
-        <ThemedText type="code" style={styles.code}>
-          get started
-        </ThemedText>
-
-        <ThemedView type="backgroundElement" style={styles.stepContainer}>
-          <HintRow
-            title="Try editing"
-            hint={<ThemedText type="code">src/app/index.tsx</ThemedText>}
-          />
-          <HintRow title="Dev tools" hint={getDevMenuHint()} />
-          <HintRow
-            title="Fresh start"
-            hint={<ThemedText type="code">npm run reset-project</ThemedText>}
-          />
-        </ThemedView>
-
-        {Platform.OS === 'web' && <WebBadge />}
-      </SafeAreaView>
-    </ThemedView>
+    <View style={[styles.container, { backgroundColor: theme.background }]}>
+      <Animated.View style={[styles.content, { opacity: fadeAnim }]}>
+        <View style={styles.iconContainer}>
+          <Lock size={64} color={theme.primary} />
+        </View>
+        
+        <Text style={[styles.title, { color: theme.textPrimary }]}>SmartTasker</Text>
+        <Text style={[styles.subtitle, { color: theme.textSecondary }]}>Your tasks, secured.</Text>
+        
+        <Animated.View style={[styles.authSection, { transform: [{ scale: pulseAnim }] }]}>
+          <Fingerprint size={48} color={theme.accent} opacity={0.8} />
+        </Animated.View>
+        
+        <TouchableOpacity style={styles.buttonWrapper} onPress={handleAuth}>
+          <LinearGradient
+            colors={[theme.gradientStart, theme.gradientEnd]}
+            style={styles.button}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+          >
+            <Text style={[styles.buttonText, { color: theme.textOnPrimary }]}>
+              {isSupported ? 'Unlock' : 'Unlock with Device Credential'}
+            </Text>
+          </LinearGradient>
+        </TouchableOpacity>
+      </Animated.View>
+      
+      <View style={styles.footer}>
+        <Text style={[styles.dateText, { color: theme.textMuted }]}>
+          {format(new Date(), 'EEEE, MMMM d')}
+        </Text>
+      </View>
+    </View>
   );
 }
 
@@ -65,34 +105,55 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     justifyContent: 'center',
-    flexDirection: 'row',
-  },
-  safeArea: {
-    flex: 1,
-    paddingHorizontal: Spacing.four,
     alignItems: 'center',
-    gap: Spacing.three,
-    paddingBottom: BottomTabInset + Spacing.three,
-    maxWidth: MaxContentWidth,
   },
-  heroSection: {
+  content: {
     alignItems: 'center',
-    justifyContent: 'center',
-    flex: 1,
-    paddingHorizontal: Spacing.four,
-    gap: Spacing.four,
+    width: '100%',
+    paddingHorizontal: spacing.xl,
+  },
+  iconContainer: {
+    marginBottom: spacing.md,
   },
   title: {
-    textAlign: 'center',
+    fontSize: typography.xxxl,
+    fontWeight: typography.bold,
+    marginBottom: spacing.xs,
   },
-  code: {
-    textTransform: 'uppercase',
+  subtitle: {
+    fontSize: typography.md,
+    marginBottom: spacing.xxxl * 2,
   },
-  stepContainer: {
-    gap: Spacing.three,
-    alignSelf: 'stretch',
-    paddingHorizontal: Spacing.three,
-    paddingVertical: Spacing.four,
-    borderRadius: Spacing.four,
+  authSection: {
+    marginBottom: spacing.xxxl,
+    alignItems: 'center',
+    justifyContent: 'center',
+    height: 80,
   },
+  buttonWrapper: {
+    width: '100%',
+    borderRadius: 16,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  button: {
+    paddingVertical: spacing.lg,
+    alignItems: 'center',
+  },
+  buttonText: {
+    fontSize: typography.md,
+    fontWeight: typography.semibold,
+  },
+  footer: {
+    position: 'absolute',
+    bottom: spacing.xxl,
+  },
+  dateText: {
+    fontSize: typography.sm,
+    fontWeight: typography.medium,
+  }
 });
