@@ -20,9 +20,6 @@ On first launch, SmartTasker greets you with a setup form asking for:
 - **Job Role / Designation** — for professionals
 - **Date of Birth** — to celebrate your birthday 🎉
 
-The app uses this to generate dynamic contextual greetings like:
-> *"Let's crush those Software Engineer goals today!"*
-
 ### 🔔 Background Notifications (OS-Level)
 Reminders are scheduled **directly with the Android/iOS OS** via `expo-notifications`. This means:
 - Notifications fire even when the app is fully closed/killed
